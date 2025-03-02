@@ -8,6 +8,6 @@
   },
   "scripts": {
     "install": "npm install",
-    "start": "node index.js"
+    "start": "node test.js"
   }
 }
