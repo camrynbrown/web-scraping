@@ -5,10 +5,18 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 let soldOut = [];
+let inStock = [];
 const SIX_HOURS = 21600000;
 const HALF_MINUTE = 60000/2;
 const HOUR = 3600000;
 const timestamp = new Date().toLocaleString();
+
+/**
+ * Initializes the stock checker by iterating through product URLs.
+ * Sends an SMS update if the `bool` flag is set to false.
+ * 
+ * @param {boolean} bool - Determines whether to send an SMS update if items are still out of stock.
+ */
 
 async function setup(bool = true) {
     
@@ -27,6 +35,15 @@ async function setup(bool = true) {
     }
 }  
 
+
+/**
+ * Checks the stock availability of a given product by scraping its webpage.
+ * Updates the `soldOut` and `inStock` lists accordingly.
+ * 
+ * @param {string} productName - The name of the product.
+ * @param {string} url - The product page URL.
+ */
+
 async function checkStock(productName, url) {
     try {
         const { data } = await axios.get(url);
@@ -36,25 +53,32 @@ async function checkStock(productName, url) {
         const isOutOfStock = $('div.product__tag--sold_out').length > 0;
         
         if (!isOutOfStock) {
-            console.log(`${productName} is back in stock!`);
+            // console.log(`${productName} is back in stock!`);
             if (soldOut.includes(productName)) {
                 soldOut = soldOut.filter(item => item !== productName);
-            } 
-                        
+            }
+
+            if (!inStock.includes(productName)) {
+                inStock.push(productName);
+                sendSMS(inStock, url, false);
+            }
+
             //sendText(productName, url);
-            sendSMS(productName, url, false);
         } else {
             //console.log(`${productName} is not in stock!`);
             if (!soldOut.includes(productName)) {
                 soldOut.push(productName)
             }
-            //console.log(soldOut);
-            //setInterval(() => sendSMS(productName, url, true), 21600000);
+            
         }
     } catch (error) {
         console.error('Error fetching the page:', error);
     }
 }
+
+/**
+ * Sends an SMS notification via Twilio when an item is back in stock.
+ **/
 
 function sendText(productName, url) {
     const client = new twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -69,6 +93,11 @@ function sendText(productName, url) {
         console.error('Error sending text:', error);
     });
 }
+
+/**
+ * Sends an SMS update via email-to-SMS gateway. Can be used for both
+ * back-in-stock notifications and periodic status updates.
+ **/
 
 function sendSMS(productName, url, bool = false) {
     const phoneNumber = process.env.PHONE_NUMBER;
@@ -104,6 +133,11 @@ function sendSMS(productName, url, bool = false) {
     });
 }
 
+/**
+ * Triggers a scheduled status update by calling `setup` with `false` to check stock
+ * without sending regular notifications.
+ **/
+
 function statusUpdate() {
     console.log("Status Update.")
     setup(false);
@@ -111,9 +145,11 @@ function statusUpdate() {
 
 console.log("Started at: " + timestamp);
 
-
+// Runs the stock check every 30 seconds
 setInterval(setup, HALF_MINUTE);
+
+// Sends a status update every 6 hours
 setInterval(statusUpdate, SIX_HOURS);
 
-// setup();
-// statusUpdate();
+setup();
+//statusUpdate();
